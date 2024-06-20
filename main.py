@@ -11,6 +11,8 @@ from sklearn.model_selection import train_test_split
 from sklearn.model_selection import train_test_split
 from tensorflow.keras.preprocessing.image import ImageDataGenerator
 from tensorflow.keras.optimizers import RMSprop
+from tensorflow.keras.models import load_model
+from model import create_model
 
 # MNIST dataset
 mnist = keras.datasets.mnist
@@ -73,3 +75,38 @@ for i in range(10):
 plt.tight_layout()
 plt.show()
 """
+
+model = create_model()
+model.summary()
+
+train_datagen = ImageDataGenerator(
+      rescale=1./255,
+      rotation_range=15,
+      width_shift_range=0.1,
+      height_shift_range=0.1,
+      shear_range=0.1,
+      zoom_range=0.2,
+      horizontal_flip=False,
+      fill_mode='nearest')
+
+test_datagen = ImageDataGenerator(rescale=1./255)
+
+train_generator = train_datagen.flow(train_images, train_labels, batch_size=50, shuffle=True)
+validation_generator = test_datagen.flow(test_images, test_labels, batch_size=50, shuffle=True)
+
+history = model.fit(
+    train_generator,
+    batch_size = 30,
+    epochs = 10,
+    verbose = 1,
+    validation_data = validation_generator,
+    callbacks=[tf.keras.callbacks.EarlyStopping(patience=3, restore_best_weights=True)]
+)
+
+model_path = 'model/model'
+model.save(model_path)
+
+print("Loading model...")
+model = load_model(model_path)
+print("Done!")
+
