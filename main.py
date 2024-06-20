@@ -62,29 +62,6 @@ test_labels = np.concatenate((test_labels_az, test_labels_mnist), axis=0)
 print("Concatenated!")
 print("Dataset ready.")
 
-"""
-Plot first 7 images from both datasets
-fig, axes = plt.subplots(1, 10, figsize=(20, 4))
-for i in range(10):
-    # Plot MNIST images
-    axes[i].imshow(train_images_mnist[i].squeeze(), cmap='gray')  # Squeeze to remove channel dimension for grayscale
-    axes[i].set_title(f"MNIST Label: {train_labels_mnist[i]}")
-    axes[i].axis('off')
-
-plt.tight_layout()
-plt.show()
-
-# Plot first 7 images from A-Z dataset
-fig, axes = plt.subplots(1, 10, figsize=(20, 4))
-
-for i in range(10):
-    # Plot A-Z images
-    axes[i].imshow(train_images_az[i].squeeze(), cmap='gray')  # Squeeze to remove channel dimension for grayscale
-    axes[i].set_title(f"A-Z Label: {train_labels_az[i]}")
-    axes[i].axis('off')
-plt.tight_layout()
-plt.show()
-"""
 
 # Plotting random 5 images from MNIST dataset
 plt.figure(figsize=(12, 6))
@@ -107,6 +84,7 @@ for i in range(5):
     plt.axis('off')
 
 plt.show()
+
 model = create_model()
 model.summary()
 
@@ -121,17 +99,18 @@ train_datagen = ImageDataGenerator(
       fill_mode='nearest')
 
 test_datagen = ImageDataGenerator(rescale=1./255)
-
-train_generator = train_datagen.flow(train_images, train_labels, batch_size=50, shuffle=True)
-validation_generator = test_datagen.flow(test_images, test_labels, batch_size=50, shuffle=True)
+train_generator = train_datagen.flow(train_images, train_labels, batch_size=64, shuffle=True)
+validation_generator = test_datagen.flow(test_images, test_labels, batch_size=64, shuffle=False)
 
 print("Training the model...")
 history = model.fit(
     train_generator,
-    batch_size = 30,
+    steps_per_epoch=len(train_images) // 64,
+    batch_size = 50,
     epochs = 10,
     verbose = 1,
     validation_data = validation_generator,
+    validation_steps=len(test_images) // 64,
     callbacks=[tf.keras.callbacks.EarlyStopping(patience=3, restore_best_weights=True)]
 )
 
@@ -141,6 +120,7 @@ model.save(model_path)
 print("Loading model...")
 model = load_model(model_path)
 print("Done!")
+
 
 # Plotting accuracy and loss
 plt.figure(figsize=(12, 5))
@@ -172,7 +152,7 @@ plt.savefig('accuracy_loss_plots.png')
 plt.show()
 
 
-
+# Open the webcam
 cap = cv2.VideoCapture(0)
 
 if not cap.isOpened():
@@ -180,44 +160,81 @@ if not cap.isOpened():
     exit()
 
 while True:
+    # Read a frame from the webcam
     ret, frame = cap.read()
     if not ret:
         print("Error: Could not read frame from camera.")
         break
 
-gray = cv2.cvtColor(frame, cv2.COLOR_BGR2GRAY)
-blurred = cv2.GaussianBlur(gray, (5, 5), 0)
-edges = cv2.Canny(blurred, 50, 150)
+    # Convert frame to grayscale and blur it
+    gray = cv2.cvtColor(frame, cv2.COLOR_BGR2GRAY)
+    blurred = cv2.GaussianBlur(gray, (5, 5), 0)
 
-# Detect contours (bounding boxes) around letters
-contours, _ = cv2.findContours(edges, cv2.RETR_EXTERNAL, cv2.CHAIN_APPROX_SIMPLE)
+    # Perform edge detection and find contours
+    edged = cv2.Canny(blurred, 30, 150)
+    cnts = cv2.findContours(edged.copy(), cv2.RETR_EXTERNAL, cv2.CHAIN_APPROX_SIMPLE)
+    cnts = imutils.grab_contours(cnts)
+    cnts = sorted(cnts, key=lambda c: cv2.boundingRect(c)[0])
 
-# Process each contour (bounding box)
-for contour in contours:
-    x, y, w, h = cv2.boundingRect(contour)
+    # Initialize list to store characters
+    chars = []
 
-    # Crop the ROI (region of interest) from the grayscale frame
-    roi = gray[y:y + h, x:x + w]
+    # Loop over contours
+    for c in cnts:
+        # Compute bounding box of contour
+        (x, y, w, h) = cv2.boundingRect(c)
 
-    # Preprocess the ROI for your model (resize, normalize, reshape)
-    resized_roi = cv2.resize(roi, (28, 28))  # Resize to match model's input size
-    normalized_roi = resized_roi.astype("float32") / 255.0  # Normalize pixel values
-    reshaped_roi = np.expand_dims(normalized_roi, axis=-1)  # Add batch dimension
+        # Filter out bounding boxes based on width and height
+        if (w >= 5 and w <= 150) and (h >= 15 and h <= 120):
+            # Extract the character region and threshold it
+            roi = gray[y:y + h, x:x + w]
+            thresh = cv2.threshold(roi, 0, 255, cv2.THRESH_BINARY_INV | cv2.THRESH_OTSU)[1]
 
-    # Make prediction using your model
-    prediction = model.predict(np.array([reshaped_roi]))
-    predicted_label = np.argmax(prediction)
+            # Resize the thresholded image to 28x28
+            thresh = cv2.resize(thresh, (28, 28))
 
-    cv2.rectangle(frame, (x, y), (x + w, y + h), (0, 255, 0), 2)  # Draw bounding box
-    cv2.putText(frame, str(predicted_label), (x, y - 10), cv2.FONT_HERSHEY_SIMPLEX, 1, (0, 255, 0), 2)
+            # Ensure the image has a single channel (grayscale)
+            thresh = np.expand_dims(thresh, axis=-1)
 
-    # Display the frame with bounding boxes and predictions
-    cv2.imshow('Frame with Predictions', frame)
+            # Prepare the image for classification
+            thresh = thresh.astype("float32") / 255.0
 
-    # Exit loop if ESC is pressed
-    if cv2.waitKey(1) & 0xFF == 27:
+            # Update list of characters
+            chars.append((thresh, (x, y, w, h)))
+
+    # Extract the bounding box locations and padded characters
+    boxes = [b[1] for b in chars]
+    chars_images = np.array([c[0] for c in chars], dtype="float32")
+
+    # OCR the characters using our handwriting recognition model
+    preds = model.predict(chars_images)
+
+    # Define the list of label names
+    labelNames = "ABCDEFGHIJKLMNOPQRSTUVWXYZ"
+    labelNames += "0123456789"
+    labelNames = [l for l in labelNames]
+
+    # Loop over the predictions and bounding box locations together
+    for (pred, (x, y, w, h)) in zip(preds, boxes):
+        # Find the index of the label with the largest corresponding
+        # probability, then extract the probability and label
+        i = np.argmax(pred)
+        prob = pred[i]
+        label = labelNames[i]
+
+        # Draw the prediction on the image
+        print("[INFO] {} - {:.2f}%".format(label, prob * 100))
+        cv2.rectangle(frame, (x, y), (x + w, y + h), (0, 255, 0), 2)
+        cv2.putText(frame, label, (x - 10, y - 10), cv2.FONT_HERSHEY_SIMPLEX, 1.2, (0, 255, 0), 2)
+
+    # Show the image with predictions
+    cv2.imshow("Image", frame)
+
+    # Exit loop if 'q' key is pressed
+    if cv2.waitKey(1) & 0xFF == ord('q'):
         break
 
-# Release the capture and close all OpenCV windows
+# Release the video capture and close all windows
 cap.release()
 cv2.destroyAllWindows()
+
