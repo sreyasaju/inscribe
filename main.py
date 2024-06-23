@@ -3,6 +3,7 @@ from tensorflow import keras
 import numpy as np
 import pandas as pd
 import cv2
+import easyocr
 import matplotlib.pyplot as plt
 import imutils
 from imutils.contours import sort_contours
@@ -13,6 +14,7 @@ from tensorflow.keras.preprocessing.image import ImageDataGenerator
 from tensorflow.keras.optimizers import RMSprop
 from tensorflow.keras.models import load_model
 from model import create_model
+
 
 # MNIST dataset
 mnist = keras.datasets.mnist
@@ -60,6 +62,9 @@ train_labels = np.concatenate((train_labels_az, train_labels_mnist), axis=0)
 test_images = np.concatenate((test_images_az, test_images_mnist), axis=0)
 test_labels = np.concatenate((test_labels_az, test_labels_mnist), axis=0)
 print("Concatenated!")
+
+train_dataset = tf.data.Dataset.from_tensor_slices((train_images, train_labels))
+test_dataset = tf.data.Dataset.from_tensor_slices((test_images, test_labels))
 print("Dataset ready.")
 
 
@@ -85,34 +90,52 @@ for i in range(5):
 
 plt.show()
 
+def augment(image, label):
+
+    # Random zoom
+    scales = list(np.arange(0.8, 1.2, 0.1))
+    boxes = np.zeros((len(scales), 4))
+    for i, scale in enumerate(scales):
+        x1 = y1 = 0.5 - 0.5 * scale
+        x2 = y2 = 0.5 + 0.5 * scale
+        boxes[i] = [x1, y1, x2, y2]
+
+    def random_crop(img):
+        crops = tf.image.crop_and_resize([img], boxes=boxes, box_indices=np.zeros(len(scales)), crop_size=(28, 28))
+        return crops[tf.random.uniform(shape=[], minval=0, maxval=len(scales), dtype=tf.int32)]
+
+    image = random_crop(image)
+
+    # Random brightness
+    image = tf.image.random_brightness(image, max_delta=0.1)
+
+    # Random contrast
+    image = tf.image.random_contrast(image, lower=0.8, upper=1.2)
+
+    return image, label
+
+
+batch_size = 30
+train_dataset = train_dataset.shuffle(buffer_size=len(train_images)).map(augment, num_parallel_calls=tf.data.experimental.AUTOTUNE).batch(batch_size).repeat()
+test_dataset = test_dataset.batch(batch_size).repeat()
+
 model = create_model()
 model.summary()
 
-train_datagen = ImageDataGenerator(
-      rescale=1./255,
-      rotation_range=15,
-      width_shift_range=0.1,
-      height_shift_range=0.1,
-      shear_range=0.1,
-      zoom_range=0.2,
-      horizontal_flip=False,
-      fill_mode='nearest')
-
-test_datagen = ImageDataGenerator(rescale=1./255)
-train_generator = train_datagen.flow(train_images, train_labels, batch_size=64, shuffle=True)
-validation_generator = test_datagen.flow(test_images, test_labels, batch_size=64, shuffle=False)
 
 print("Training the model...")
 history = model.fit(
-    train_generator,
-    steps_per_epoch=len(train_images) // 64,
-    batch_size = 50,
+    train_dataset,
+    batch_size = 30,
+    steps_per_epoch=len(train_images) // batch_size,
     epochs = 10,
     verbose = 1,
-    validation_data = validation_generator,
-    validation_steps=len(test_images) // 64,
+    validation_data = test_dataset,
+    validation_steps=len(test_images) // batch_size,
     callbacks=[tf.keras.callbacks.EarlyStopping(patience=3, restore_best_weights=True)]
 )
+
+
 
 model_path = 'model/model.keras'
 model.save(model_path)
@@ -201,7 +224,6 @@ while True:
 
             # Update list of characters
             chars.append((thresh, (x, y, w, h)))
-
     # Extract the bounding box locations and padded characters
     boxes = [b[1] for b in chars]
     chars_images = np.array([c[0] for c in chars], dtype="float32")
@@ -222,6 +244,7 @@ while True:
         prob = pred[i]
         label = labelNames[i]
 
+
         # Draw the prediction on the image
         print("[INFO] {} - {:.2f}%".format(label, prob * 100))
         cv2.rectangle(frame, (x, y), (x + w, y + h), (0, 255, 0), 2)
@@ -231,7 +254,7 @@ while True:
     cv2.imshow("Image", frame)
 
     # Exit loop if 'q' key is pressed
-    if cv2.waitKey(1) & 0xFF == ord('q'):
+    if cv2.waitKey(1) & 0xFF == 27:
         break
 
 # Release the video capture and close all windows
