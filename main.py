@@ -4,7 +4,6 @@ import sys
 from PyQt5.QtWidgets import QApplication, QMainWindow, QLabel, QTextEdit, QPushButton, QVBoxLayout, QWidget, QHBoxLayout
 from PyQt5.QtGui import QImage, QPixmap, QPainter, QPen, QFont
 from PyQt5.QtCore import QTimer, Qt, QRect
-from PIL import Image
 import numpy as np
 
 # Initialize EasyOCR
