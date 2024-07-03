@@ -70,9 +70,9 @@ class HandwritingRecognitionApp(QMainWindow):
         self.setCentralWidget(self.central_widget)
 
         # layouts
-        self.main_layout = QHBoxLayout()
-        self.video_layout = QVBoxLayout()
-        self.text_layout = QVBoxLayout()
+        self.main_layout = QHBoxLayout()  # Horizontal layout for main window
+        self.video_layout = QVBoxLayout()  # Vertical layout for video frame
+        self.text_layout = QVBoxLayout()  # Vertical layout for text field and buttons
 
         # video frame label
         self.video_label = QLabel(self)
@@ -84,20 +84,27 @@ class HandwritingRecognitionApp(QMainWindow):
         self.text_field.setReadOnly(True)
         self.text_layout.addWidget(self.text_field)
 
-        # buttons
+        # buttons layout
+        buttons_layout = QHBoxLayout()
+
+        # start_stop_button
         self.start_stop_button = QPushButton("Stop Video", self)
         self.start_stop_button.setObjectName("start_stop_button")
         self.start_stop_button.setFixedSize(250, 60)
         self.start_stop_button.clicked.connect(self.toggle_video_feed)
-        self.text_layout.addWidget(self.start_stop_button)
+        buttons_layout.addWidget(self.start_stop_button)
 
+        # exit_button
         self.exit_button = QPushButton("Exit", self)
         self.exit_button.setObjectName("exit_button")
         self.exit_button.setFixedSize(250, 60)
         self.exit_button.clicked.connect(self.close)
-        self.text_layout.addWidget(self.exit_button)
+        buttons_layout.addWidget(self.exit_button)
 
-        # adding the  layouts to the main layout
+        # Add buttons layout to text layout
+        self.text_layout.addLayout(buttons_layout)
+
+        # Add video layout and text layout to main layout
         self.main_layout.addLayout(self.video_layout)
         self.main_layout.addLayout(self.text_layout)
 
