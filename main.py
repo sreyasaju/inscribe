@@ -19,48 +19,29 @@ class HandwritingRecognitionApp(QMainWindow):
         self.setGeometry(100, 100, 1200, 600)
         self.setStyleSheet("""
             QMainWindow {
-                background-color: #171e30;
+                background-color: #1e1e2e;
             }
             QTextEdit {
-                background-color: #131c31;
-                color: #d4d6ff;
-                border: 4px solid #5c6bff;
-                border-radius: 15px;
+                background-color: #282a36;
+                color: #f8f8f2;
+                border: 1px solid #6272a4;
                 font: 22pt 'Trebuchet MS';
-                
             }
-            QPushButton#start_stop_button {
-                background-color: #7587ff;
-                color: #1f283e;
-                font: 16pt 'Trebuchet MS';
+            QPushButton {
+                background-color: #44475a;
+                color: #f8f8f2;
+                font: 12pt 'Helvetica';
+                padding: 10px;
                 border: none;
-                border-radius: 10px;
-                margin: 5px 2px;
-                padding: 10px 50px;
+                border-radius: 5px;
             }
-            QPushButton#start_stop_button:hover {
-                background-color: #8796ff;
+            QPushButton:hover {
+                background-color: #6272a4;
             }
-
-            QPushButton#exit_button {
-                background-color: #8292ff;
-                color: #1f283e;
-                font: 16pt 'Trebuchet MS';
-                border: none;
-                border-radius: 10px;
-                margin: 5px 2px;
-                padding: 10px 50px;
-            }
-            QPushButton#exit_button:hover {
-                background-color: #98a4ff;
-            }
-            
             QLabel {
                 background-color: #1e1e2e;
                 border: 1px solid #6272a4;
             }
-            
-            start
         """)
         self.video_running = True
         self.initUI()
@@ -86,17 +67,12 @@ class HandwritingRecognitionApp(QMainWindow):
 
         # buttons
         self.start_stop_button = QPushButton("Stop Video", self)
-        self.start_stop_button.setObjectName("start_stop_button")
-        self.start_stop_button.setFixedSize(250, 60)
         self.start_stop_button.clicked.connect(self.toggle_video_feed)
         self.text_layout.addWidget(self.start_stop_button)
 
         self.exit_button = QPushButton("Exit", self)
-        self.exit_button.setObjectName("exit_button")
-        self.exit_button.setFixedSize(250, 60)
         self.exit_button.clicked.connect(self.close)
         self.text_layout.addWidget(self.exit_button)
-
 
         # adding the  layouts to the main layout
         self.main_layout.addLayout(self.video_layout)
@@ -121,7 +97,7 @@ class HandwritingRecognitionApp(QMainWindow):
             # bounding box and label
             pts = np.array(bbox, dtype=np.int32)
             cv2.polylines(frame, [pts], isClosed=True, color=(0, 255, 0), thickness=2)
-            cv2.putText(frame, text, (pts[0][0], pts[0][1] - 10), cv2.FONT_HERSHEY_SIMPLEX, 1, (0, 255, 0), 5)
+            cv2.putText(frame, text, (pts[0][0], pts[0][1] - 10), cv2.FONT_HERSHEY_SIMPLEX, 0.5, (0, 255, 0), 2)
 
             recognized_text += text + ' '
 
