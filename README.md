@@ -78,6 +78,6 @@ OUT OF OR IN CONNECTION WITH THE SOFTWARE OR THE USE OR OTHER DEALINGS IN THE
 SOFTWARE.
 ```
 
-Copyright &copy; 2024 [Sreya Saju](https://github.com/sreyasaju)
+Copyright &copy; 2024-26 [Sreya Saju](https://github.com/sreyasaju)
 
 
